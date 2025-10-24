@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fruit Love</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #111827;
+      --panel: #1f2937;
+      --accent: #f472b6;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --good: #34d399;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: radial-gradient(1000px 600px at 50% -100px, #1f2937 10%, #0b1220 70%, #050a16 100%), var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: .3px;
+    }
+    .bar {
+      background: color-mix(in oklab, var(--panel) 80%, transparent);
+      backdrop-filter: blur(6px);
+      border: 1px solid #2a3546;
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      cursor: pointer;
+      border-radius: 10px;
+      padding: 8px 10px;
+      border: 1px solid #2a3546;
+      background: #0f1729;
+      color: var(--text);
+      font-size: 16px;
+      transition: transform .05s ease, background .2s ease;
+      user-select: none;
+    }
+    .btn:hover { background: #13203b; }
+    .btn:active { transform: translateY(1px); }
+    .btn.sel { outline: 2px solid var(--accent); }
+    .note { color: var(--muted); font-size: 13px; margin-left: auto; }
+    canvas {
+      width: 100%;
+      height: 72vh;
+      border-radius: 14px;
+      border: 1px solid #2a3546;
+      background: #0b1220;
+      touch-action: manipulation;
+      display: block;
+    }
+    .footer {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+    .card {
+      background: #0f1729;
+      border: 1px solid #2a3546;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 480px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    }
+    .card h2 {
+      margin: 0 0 12px 0;
+      font-size: 28px;
+      color: var(--good);
+    }
+    .card p { margin: 0 0 18px 0; color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Fruit Love</h1>
+      <div class="bar" id="fruitBar"></div>
+    </header>
+
+    <div class="bar">
+      <button class="btn" id="dropMode">Click canvas to drop fruit</button>
+      <button class="btn" id="clearBtn">Reset</button>
+      <span class="note">Merge matching fruits into bigger ones until the surprise appears 💖</span>
+    </div>
+
+    <canvas id="game" width="900" height="650" aria-label="Fruit Love Game"></canvas>
+
+    <div class="footer">
+      <span>Tip: Choose a fruit, then click the canvas to drop it from above.</span>
+      <span>Physics may be playful rather than perfect—enjoy the charm!</span>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <h2>i love you 💗</h2>
+      <p>Two hearts, one fruit bowl — you and me, always.</p>
+      <button class="btn" id="playAgain">Play again</button>
+    </div>
+  </div>
+
+  <script>
+    // Canvas setup
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    // Fruit definitions (levels grow in size)
+    const FRUITS = [
+      { name: 'Cherry',  color: '#e63946', emoji: '🍒', r: 16 },
+      { name: 'Orange',  color: '#f4a261', emoji: '🍊', r: 22 },
+      { name: 'Lemon',   color: '#ffd166', emoji: '🍋', r: 28 },
+      { name: 'Apple',   color: '#ef233c', emoji: '🍎', r: 36 },
+      { name: 'Pear',    color: '#84cc16', emoji: '🍐', r: 46 },
+      { name: 'Peach',   color: '#ffafcc', emoji: '🍑', r: 58 },
+      { name: 'Melon',   color: '#2dd4bf', emoji: '🍈', r: 72 },
+      { name: 'Watermelon', color: '#2a9d8f', emoji: '🍉', r: 90 }
+    ];
+    const MAX_LEVEL = FRUITS.length - 1;
+
+    // UI fruit chooser
+    const fruitBar = document.getElementById('fruitBar');
+    let selectedLevel = 0;
+    FRUITS.slice(0, 4).forEach((f, i) => {
+      const b = document.createElement('button');
+      b.className = 'btn' + (i === 0 ? ' sel' : '');
+      b.textContent = f.emoji + ' ' + f.name;
+      b.onclick = () => {
+        selectedLevel = i;
+        [...fruitBar.children].forEach(el => el.classList.remove('sel'));
+        b.classList.add('sel');
+      };
+      fruitBar.appendChild(b);
+    });
+
+    // Game state
+    let fruits = [];
+    let lastTime = 0;
+    let running = true;
+    let showWin = false;
+
+    // Physics
+    const GRAVITY = 0.6;
+    const BOUNCE = 0.35;
+    const AIR = 0.995;
+    const FLOOR_Y = canvas.height - 12;
+    const WALL_LEFT = 12;
+    const WALL_RIGHT = canvas.width - 12;
+
+    canvas.addEventListener('click', (e) => {
+      if (!running) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      // Spawn slightly above top
+      spawnFruit(x, 30, selectedLevel);
+    });
+
+    document.getElementById('clearBtn').onclick = resetGame;
+    document.getElementById('playAgain').onclick = () => { hideOverlay(); resetGame(); };
+
+    function resetGame() {
+      fruits = [];
+      running = true;
+      showWin = false;
+    }
+
+    function showOverlay() {
+      document.getElementById('overlay').style.display = 'flex';
+    }
+    function hideOverlay() {
+      document.getElementById('overlay').style.display = 'none';
+    }
+
+    function spawnFruit(x, y, level) {
+      const fdef = FRUITS[level];
+      fruits.push({
+        id: Math.random().toString(36).slice(2),
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        r: fdef.r,
+        level,
+        mergedLock: 0 // cooldown frames after merging
+      });
+    }
+
+    function length(dx, dy) {
+      return Math.hypot(dx, dy);
+    }
+
+    function resolveStaticSeparation(a, b) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      let dist = Math.hypot(dx, dy) || 0.0001;
+      const overlap = a.r + b.r - dist;
+      if (overlap > 0) {
+        const nx = dx / dist, ny = dy / dist;
+        const move = overlap / 2;
+        a.x -= nx * move;
+        a.y -= ny * move;
+        b.x += nx * move;
+        b.y += ny * move;
+        // Light bounce along normal
+        const rvx = b.vx - a.vx;
+        const rvy = b.vy - a.vy;
+        const vn = rvx * nx + rvy * ny;
+        if (vn < 0) {
+          const impulse = -(1 + 0.5) * vn / 2;
+          a.vx -= impulse * nx;
+          a.vy -= impulse * ny;
+          b.vx += impulse * nx;
+          b.vy += impulse * ny;
+        }
+      }
+    }
+
+    function tryMerge(a, b) {
+      if (a.level !== b.level) return false;
+      if (a.level >= MAX_LEVEL) return false;
+      if (a.mergedLock > 0 || b.mergedLock > 0) return false;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= a.r + b.r - 4) {
+        // Merge into next level
+        const nx = (a.x + b.x) / 2;
+        const ny = (a.y + b.y) / 2;
+        const nextLevel = a.level + 1;
+        // Remove a and b
+        fruits = fruits.filter(f => f !== a && f !== b);
+        const merged = {
+          id: Math.random().toString(36).slice(2),
+          x: nx,
+          y: ny,
+          vx: (a.vx + b.vx) / 2,
+          vy: (a.vy + b.vy) / 2,
+          r: FRUITS[nextLevel].r,
+          level: nextLevel,
+          mergedLock: 20
+        };
+        fruits.push(merged);
+        // Win condition: reached final fruit
+        if (nextLevel === MAX_LEVEL && !showWin) {
+          showWin = true;
+          running = false;
+          setTimeout(showOverlay, 450);
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function update(dt) {
+      for (const f of fruits) {
+        if (f.mergedLock > 0) f.mergedLock--;
+        // Gravity & motion
+        f.vy += GRAVITY;
+        f.x += f.vx * dt;
+        f.y += f.vy * dt;
+        f.vx *= AIR;
+        f.vy *= AIR;
+
+        // Walls
+        if (f.x - f.r < WALL_LEFT) {
+          f.x = WALL_LEFT + f.r;
+          f.vx = -f.vx * BOUNCE;
+        } else if (f.x + f.r > WALL_RIGHT) {
+          f.x = WALL_RIGHT - f.r;
+          f.vx = -f.vx * BOUNCE;
+        }
+        // Floor
+        if (f.y + f.r > FLOOR_Y) {
+          f.y = FLOOR_Y - f.r;
+          f.vy = -Math.abs(f.vy) * BOUNCE;
+          // friction
+          f.vx *= 0.96;
+        }
+        // Ceiling
+        if (f.y - f.r < 12) {
+          f.y = 12 + f.r;
+          f.vy = Math.abs(f.vy) * BOUNCE;
+        }
+      }
+
+      // Pairwise collisions and merges
+      // Shuffle-like iteration for fairness
+      for (let i = 0; i < fruits.length; i++) {
+        for (let j = i + 1; j < fruits.length; j++) {
+          const a = fruits[i], b = fruits[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < a.r + b.r) {
+            // Try to merge first if levels match
+            if (tryMerge(a, b)) {
+              // Restart outer loops since array changed
+              i = -1;
+              break;
+            } else {
+              resolveStaticSeparation(a, b);
+            }
+          }
+        }
+      }
+    }
+
+    function drawFruit(f) {
+      const def = FRUITS[f.level];
+      // Circle
+      ctx.beginPath();
+      ctx.fillStyle = def.color;
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+      // Emoji
+      ctx.fillStyle = '#0b1220';
+      const fontSize = Math.max(14, Math.floor(f.r * 0.9));
+      ctx.font = `bold ${fontSize}px system-ui, Apple Color Emoji, Segoe UI Emoji`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.emoji, f.x, f.y);
+    }
+
+    function drawWorld() {
+      // Floor
+      ctx.fillStyle = '#0e1526';
+      ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
+      // Side rails
+      ctx.fillStyle = '#1f2a44';
+      ctx.fillRect(0, 0, 8, canvas.height);
+      ctx.fillRect(canvas.width - 8, 0, 8, canvas.height);
+      // Top rail
+      ctx.fillRect(0, 0, canvas.width, 8);
+    }
+
+    function loop(ts) {
+      const dt = Math.min((ts - lastTime) / 16.666, 2);
+      lastTime = ts;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawWorld();
+      if (running) update(dt);
+      for (const f of fruits) drawFruit(f);
+
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
